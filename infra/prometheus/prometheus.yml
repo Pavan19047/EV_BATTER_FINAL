@@ -1,0 +1,51 @@
+# infra/prometheus/prometheus.yml - Prometheus Configuration
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'ev-digital-twin'
+    environment: 'local'
+
+# Alertmanager configuration (optional)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# Load rules once and periodically evaluate them
+rule_files: []
+
+# Scrape configurations
+scrape_configs:
+  # EV Live Predictor Service
+  - job_name: 'ev_predictor'
+    static_configs:
+      - targets: ['ev-live-predictor:9100']
+        labels:
+          service: 'live-predictor'
+          component: 'inference'
+    scrape_interval: 5s
+    scrape_timeout: 5s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+          component: 'monitoring'
+
+  # Docker host metrics (if node-exporter is added)
+  - job_name: 'node'
+    static_configs:
+      - targets: []  # Add node-exporter:9100 if deployed
+        labels:
+          service: 'node-exporter'
+          component: 'system-metrics'
+
+  # Additional services can be added here
+  # Example for MLflow, Grafana, etc.
+  - job_name: 'infrastructure'
+    static_configs:
+      - targets: []  # Add additional exporters as needed

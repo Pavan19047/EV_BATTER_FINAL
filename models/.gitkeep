@@ -1,0 +1,3 @@
+# models/.gitkeep
+# Trained models will be saved here
+# Files: rul_xgb_model.joblib, failure_xgb_model.joblib, *.json
