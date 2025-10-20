@@ -51,9 +51,10 @@ class ModelLoader:
         self.models_dir = models_dir
         self.rul_model = None
         self.failure_model = None
+        self.scaler = None
         
-    def load_models(self) -> Tuple[Optional[object], Optional[object]]:
-        """Load RUL and failure prediction models."""
+    def load_models(self) -> Tuple[Optional[object], Optional[object], Optional[object]]:
+        """Load RUL and failure prediction models, plus the scaler."""
         
         # Try loading from MLflow first (if environment variables are set)
         mlflow_uri = os.getenv('MLFLOW_MODEL_URI')
@@ -63,14 +64,16 @@ class ModelLoader:
                 import mlflow.pyfunc
                 self.rul_model = mlflow.pyfunc.load_model(f"{mlflow_uri}/rul_model")
                 self.failure_model = mlflow.pyfunc.load_model(f"{mlflow_uri}/failure_model")
+                # Note: scaler would need to be loaded separately from MLflow
                 logger.info("Successfully loaded models from MLflow")
-                return self.rul_model, self.failure_model
+                return self.rul_model, self.failure_model, self.scaler
             except Exception as e:
                 logger.warning(f"Failed to load from MLflow: {e}, falling back to local files")
         
         # Load from local filesystem
         rul_path = os.path.join(self.models_dir, 'rul_xgb_model.joblib')
         failure_path = os.path.join(self.models_dir, 'failure_xgb_model.joblib')
+        scaler_path = os.path.join(self.models_dir, 'scaler.joblib')
         
         try:
             if os.path.exists(rul_path):
@@ -84,11 +87,17 @@ class ModelLoader:
                 logger.info(f"Loaded failure model from {failure_path}")
             else:
                 logger.error(f"Failure model not found at {failure_path}")
+            
+            if os.path.exists(scaler_path):
+                self.scaler = joblib.load(scaler_path)
+                logger.info(f"Loaded scaler from {scaler_path}")
+            else:
+                logger.error(f"Scaler not found at {scaler_path}")
                 
         except Exception as e:
             logger.error(f"Error loading models: {e}", exc_info=True)
         
-        return self.rul_model, self.failure_model
+        return self.rul_model, self.failure_model, self.scaler
 
 
 class TelemetryFetcher:
@@ -126,7 +135,7 @@ class TelemetryFetcher:
             
             query = """
                 SELECT ts, soc, soh, battery_voltage, battery_current,
-                       battery_temperature, motor_temperature, motor_vibration,
+                       battery_temperature, charge_cycles, motor_temperature, motor_vibration,
                        power_consumption, driving_speed, distance_traveled
                 FROM telemetry
                 ORDER BY ts DESC
@@ -145,11 +154,12 @@ class TelemetryFetcher:
                     'battery_voltage': row[3],
                     'battery_current': row[4],
                     'battery_temperature': row[5],
-                    'motor_temperature': row[6],
-                    'motor_vibration': row[7],
-                    'power_consumption': row[8],
-                    'driving_speed': row[9],
-                    'distance_traveled': row[10]
+                    'charge_cycles': row[6],
+                    'motor_temperature': row[7],
+                    'motor_vibration': row[8],
+                    'power_consumption': row[9],
+                    'driving_speed': row[10],
+                    'distance_traveled': row[11]
                 }
                 return telemetry
             else:
@@ -213,6 +223,7 @@ class PredictionPublisher:
         
     def _init_mqtt(self) -> Optional[mqtt.Client]:
         """Initialize MQTT client."""
+
         try:
             client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="ev_predictor", protocol=mqtt.MQTTv311)
             logger.info(f"Connecting to MQTT at {self.mqtt_host}:{self.mqtt_port}")
@@ -259,31 +270,32 @@ def build_feature_vector(telemetry: Dict) -> np.ndarray:
     """
     Build feature vector from telemetry data for model inference.
     
+    IMPORTANT: Must match the 7 features used during model training:
+    1. SoC
+    2. SoH  
+    3. Battery_Voltage
+    4. Battery_Current
+    5. Battery_Temperature
+    6. Charge_Cycles (not available in telemetry, use estimated value)
+    7. Power_Consumption
+    
     Args:
         telemetry: Dictionary containing telemetry fields
         
     Returns:
-        numpy array with features in correct order
+        numpy array with features in correct order (7 features)
     """
-    # Import shared utility if available
-    try:
-        from src.common.utils import extract_features
-        return extract_features(telemetry)
-    except ImportError:
-        # Fallback implementation
-        features = [
-            telemetry.get('soc', 0),
-            telemetry.get('soh', 0),
-            telemetry.get('battery_voltage', 0),
-            telemetry.get('battery_current', 0),
-            telemetry.get('battery_temperature', 0),
-            telemetry.get('motor_temperature', 0),
-            telemetry.get('motor_vibration', 0),
-            telemetry.get('power_consumption', 0),
-            telemetry.get('driving_speed', 0),
-            telemetry.get('distance_traveled', 0)
-        ]
-        return np.array([features])
+    # Feature vector matching training: 7 features only
+    features = [
+        telemetry.get('soc', 0),                    # SoC
+        telemetry.get('soh', 0),                    # SoH
+        telemetry.get('battery_voltage', 0),        # Battery_Voltage
+        telemetry.get('battery_current', 0),        # Battery_Current
+        telemetry.get('battery_temperature', 0),    # Battery_Temperature
+        telemetry.get('charge_cycles', 100),        # Charge_Cycles (estimated if not available)
+        telemetry.get('power_consumption', 0)       # Power_Consumption
+    ]
+    return np.array([features])
 
 
 class LivePredictor:
@@ -295,11 +307,14 @@ class LivePredictor:
         # Load models
         logger.info("Loading models...")
         loader = ModelLoader(models_dir='models')
-        self.rul_model, self.failure_model = loader.load_models()
+        self.rul_model, self.failure_model, self.scaler = loader.load_models()
         
         if not self.rul_model or not self.failure_model:
             logger.error("Failed to load models. Ensure models are trained and available.")
             sys.exit(1)
+        
+        if not self.scaler:
+            logger.warning("Scaler not found. Predictions may be inaccurate!")
         
         # Initialize components
         self.fetcher = TelemetryFetcher(args.pg)
@@ -321,6 +336,10 @@ class LivePredictor:
         """
         # Build feature vector
         features = build_feature_vector(telemetry)
+        
+        # Scale features if scaler is available
+        if self.scaler:
+            features = self.scaler.transform(features)
         
         # Make predictions
         rul = float(self.rul_model.predict(features)[0])

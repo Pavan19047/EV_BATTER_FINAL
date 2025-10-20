@@ -14,6 +14,7 @@ CREATE TABLE telemetry (
     battery_voltage FLOAT,          -- Battery pack voltage (V)
     battery_current FLOAT,          -- Battery current (A)
     battery_temperature FLOAT,      -- Battery temperature (°C)
+    charge_cycles INTEGER,          -- Battery charge cycles count
     motor_temperature FLOAT,        -- Motor temperature (°C)
     motor_vibration FLOAT,          -- Motor vibration level
     power_consumption FLOAT,        -- Power consumption (kW)
@@ -63,9 +64,9 @@ SELECT add_continuous_aggregate_policy('telemetry_hourly',
 
 -- Insert sample row to verify table creation
 INSERT INTO telemetry (ts, soc, soh, battery_voltage, battery_current, battery_temperature, 
-                       motor_temperature, motor_vibration, power_consumption, 
+                       charge_cycles, motor_temperature, motor_vibration, power_consumption, 
                        driving_speed, distance_traveled)
-VALUES (NOW(), 85.0, 95.0, 400.0, 50.0, 25.0, 65.0, 0.5, 35.0, 60.0, 0.0)
+VALUES (NOW(), 85.0, 95.0, 400.0, 50.0, 25.0, 0, 65.0, 0.5, 35.0, 60.0, 0.0)
 ON CONFLICT (ts) DO NOTHING;
 
 -- Verify table creation

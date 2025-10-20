@@ -1,0 +1,14 @@
+apiVersion: 1
+
+datasources:
+  - name: PostgreSQL
+    type: postgres
+    url: timescaledb:5432
+    database: twin_data
+    user: twin
+    secureJsonData:
+      password: twin_pass
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1500
+    isDefault: true

@@ -78,6 +78,7 @@ class TelemetryGenerator:
             'battery_voltage': round(battery_voltage, 2),
             'battery_current': round(battery_current, 2),
             'battery_temperature': round(battery_temp, 2),
+            'charge_cycles': self.cycles,  # Add charge cycles for model prediction
             'motor_temperature': round(motor_temp, 2),
             'motor_vibration': round(motor_vibration, 3),
             'power_consumption': round(power_consumption, 2),
@@ -207,16 +208,17 @@ class TelemetryPublisher:
                 insert_query = """
                     INSERT INTO telemetry (
                         ts, soc, soh, battery_voltage, battery_current,
-                        battery_temperature, motor_temperature, motor_vibration,
+                        battery_temperature, charge_cycles, motor_temperature, motor_vibration,
                         power_consumption, driving_speed, distance_traveled
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                     ) ON CONFLICT (ts) DO UPDATE SET
                         soc = EXCLUDED.soc,
                         soh = EXCLUDED.soh,
                         battery_voltage = EXCLUDED.battery_voltage,
                         battery_current = EXCLUDED.battery_current,
                         battery_temperature = EXCLUDED.battery_temperature,
+                        charge_cycles = EXCLUDED.charge_cycles,
                         motor_temperature = EXCLUDED.motor_temperature,
                         motor_vibration = EXCLUDED.motor_vibration,
                         power_consumption = EXCLUDED.power_consumption,
@@ -231,6 +233,7 @@ class TelemetryPublisher:
                     telemetry['battery_voltage'],
                     telemetry['battery_current'],
                     telemetry['battery_temperature'],
+                    telemetry['charge_cycles'],
                     telemetry['motor_temperature'],
                     telemetry['motor_vibration'],
                     telemetry['power_consumption'],

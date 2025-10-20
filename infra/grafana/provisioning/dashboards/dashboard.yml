@@ -1,8 +1,7 @@
-# infra/grafana/provisioning/dashboards/dashboards.yaml - Dashboard Provisioning
 apiVersion: 1
 
 providers:
-  - name: 'EV Digital Twin'
+  - name: 'EV Battery Dashboards'
     orgId: 1
     folder: ''
     type: file
@@ -11,4 +10,4 @@ providers:
     allowUiUpdates: true
     options:
       path: /etc/grafana/provisioning/dashboards
-      foldersFromFilesStructure: true
+      foldersFromFilesStructure: false

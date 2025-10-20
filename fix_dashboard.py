@@ -1,0 +1,217 @@
+import json
+
+dashboard = {
+  "dashboard": {
+    "id": None,
+    "uid": "ev-battery-twin",
+    "title": "EV Battery Digital Twin - Real-time Monitoring",
+    "tags": ["EV", "Battery", "Predictions", "IoT"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "5s",
+    "time": {"from": "now-15m", "to": "now"},
+    "timepicker": {"refresh_intervals": ["5s", "10s", "30s", "1m", "5m"]},
+    "panels": [
+      {
+        "id": 1,
+        "type": "stat",
+        "title": "State of Charge (SoC)",
+        "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+        "targets": [{
+          "datasource": {"type": "postgres", "uid": "PCC52D03280B7034C"},
+          "rawSql": "SELECT NOW() as time, soc as value FROM telemetry ORDER BY ts DESC LIMIT 1",
+          "refId": "A",
+          "format": "table"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 20, "color": "orange"},
+                {"value": 50, "color": "yellow"},
+                {"value": 80, "color": "green"}
+              ]
+            },
+            "max": 100,
+            "min": 0
+          }
+        },
+        "options": {"graphMode": "area", "colorMode": "background", "textMode": "value_and_name"}
+      },
+      {
+        "id": 2,
+        "type": "stat",
+        "title": "State of Health (SoH)",
+        "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+        "targets": [{
+          "datasource": {"type": "postgres", "uid": "PCC52D03280B7034C"},
+          "rawSql": "SELECT NOW() as time, soh as value FROM telemetry ORDER BY ts DESC LIMIT 1",
+          "refId": "A",
+          "format": "table"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 70, "color": "orange"},
+                {"value": 85, "color": "yellow"},
+                {"value": 95, "color": "green"}
+              ]
+            },
+            "max": 100,
+            "min": 0
+          }
+        },
+        "options": {"graphMode": "area", "colorMode": "background", "textMode": "value_and_name"}
+      },
+      {
+        "id": 3,
+        "type": "stat",
+        "title": "Battery Voltage",
+        "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+        "targets": [{
+          "datasource": {"type": "postgres", "uid": "PCC52D03280B7034C"},
+          "rawSql": "SELECT NOW() as time, battery_voltage as value FROM telemetry ORDER BY ts DESC LIMIT 1",
+          "refId": "A",
+          "format": "table"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "volt",
+            "decimals": 1
+          }
+        },
+        "options": {"graphMode": "area", "colorMode": "value", "textMode": "value_and_name"}
+      },
+      {
+        "id": 4,
+        "type": "stat",
+        "title": "Battery Temperature",
+        "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+        "targets": [{
+          "datasource": {"type": "postgres", "uid": "PCC52D03280B7034C"},
+          "rawSql": "SELECT NOW() as time, battery_temperature as value FROM telemetry ORDER BY ts DESC LIMIT 1",
+          "refId": "A",
+          "format": "table"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "celsius",
+            "decimals": 1,
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "blue"},
+                {"value": 20, "color": "green"},
+                {"value": 40, "color": "orange"},
+                {"value": 50, "color": "red"}
+              ]
+            }
+          }
+        },
+        "options": {"graphMode": "area", "colorMode": "background", "textMode": "value_and_name"}
+      },
+      {
+        "id": 5,
+        "type": "timeseries",
+        "title": "Battery State - SoC and SoH Over Time",
+        "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+        "targets": [
+          {
+            "datasource": {"type": "postgres", "uid": "PCC52D03280B7034C"},
+            "rawSql": "SELECT ts as time, soc as \"SoC (%)\" FROM telemetry WHERE $__timeFilter(ts) ORDER BY ts",
+            "refId": "A",
+            "format": "time_series"
+          },
+          {
+            "datasource": {"type": "postgres", "uid": "PCC52D03280B7034C"},
+            "rawSql": "SELECT ts as time, soh as \"SoH (%)\" FROM telemetry WHERE $__timeFilter(ts) ORDER BY ts",
+            "refId": "B",
+            "format": "time_series"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {"unit": "percent", "max": 100, "min": 0}
+        }
+      },
+      {
+        "id": 6,
+        "type": "timeseries",
+        "title": "Battery Voltage and Temperature Over Time",
+        "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+        "targets": [
+          {
+            "datasource": {"type": "postgres", "uid": "PCC52D03280B7034C"},
+            "rawSql": "SELECT ts as time, battery_voltage as \"Voltage (V)\" FROM telemetry WHERE $__timeFilter(ts) ORDER BY ts",
+            "refId": "A",
+            "format": "time_series"
+          },
+          {
+            "datasource": {"type": "postgres", "uid": "PCC52D03280B7034C"},
+            "rawSql": "SELECT ts as time, battery_temperature as \"Temperature (°C)\" FROM telemetry WHERE $__timeFilter(ts) ORDER BY ts",
+            "refId": "B",
+            "format": "time_series"
+          }
+        ],
+        "fieldConfig": {"defaults": {}}
+      },
+      {
+        "id": 7,
+        "type": "timeseries",
+        "title": "Battery Current and Power",
+        "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+        "targets": [
+          {
+            "datasource": {"type": "postgres", "uid": "PCC52D03280B7034C"},
+            "rawSql": "SELECT ts as time, battery_current as \"Current (A)\" FROM telemetry WHERE $__timeFilter(ts) ORDER BY ts",
+            "refId": "A",
+            "format": "time_series"
+          },
+          {
+            "datasource": {"type": "postgres", "uid": "PCC52D03280B7034C"},
+            "rawSql": "SELECT ts as time, power_consumption as \"Power (W)\" FROM telemetry WHERE $__timeFilter(ts) ORDER BY ts",
+            "refId": "B",
+            "format": "time_series"
+          }
+        ],
+        "fieldConfig": {"defaults": {}}
+      },
+      {
+        "id": 8,
+        "type": "timeseries",
+        "title": "Vehicle Speed and Distance",
+        "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+        "targets": [
+          {
+            "datasource": {"type": "postgres", "uid": "PCC52D03280B7034C"},
+            "rawSql": "SELECT ts as time, vehicle_speed as \"Speed (km/h)\" FROM telemetry WHERE $__timeFilter(ts) ORDER BY ts",
+            "refId": "A",
+            "format": "time_series"
+          },
+          {
+            "datasource": {"type": "postgres", "uid": "PCC52D03280B7034C"},
+            "rawSql": "SELECT ts as time, distance_traveled as \"Distance (km)\" FROM telemetry WHERE $__timeFilter(ts) ORDER BY ts",
+            "refId": "B",
+            "format": "time_series"
+          }
+        ],
+        "fieldConfig": {"defaults": {}}
+      }
+    ]
+  },
+  "overwrite": True
+}
+
+with open('infra/grafana/provisioning/dashboards/ev-battery-dashboard.json', 'w', encoding='utf-8') as f:
+    json.dump(dashboard, f, indent=2)
+print('Dashboard updated successfully!')
